@@ -3,7 +3,6 @@ Contains the :class:`base class <tinydb.middlewares.Middleware>` for
 middlewares and implementations.
 """
 from typing import Optional
-
 from tinydb import Storage
 
 
@@ -18,9 +17,9 @@ class Middleware:
     constructor so the middleware chain can be configured properly.
     """
 
-    def __init__(self, storage_cls) -> None:
+    def __init__(self, storage_cls) ->None:
         self._storage_cls = storage_cls
-        self.storage: Storage = None  # type: ignore
+        self.storage: Storage = None
 
     def __call__(self, *args, **kwargs):
         """
@@ -59,9 +58,7 @@ class Middleware:
         nested Middleware that itself will initialize the next Middleware and
         so on.
         """
-
         self.storage = self._storage_cls(*args, **kwargs)
-
         return self
 
     def __getattr__(self, name):
@@ -69,7 +66,6 @@ class Middleware:
         Forward all unknown attribute calls to the underlying storage, so we
         remain as transparent as possible.
         """
-
         return getattr(self.__dict__['storage'], name)
 
 
@@ -81,47 +77,15 @@ class CachingMiddleware(Middleware):
     the last DB state every :attr:`WRITE_CACHE_SIZE` time and reading always
     from cache.
     """
-
-    #: The number of write operations to cache before writing to disc
     WRITE_CACHE_SIZE = 1000
 
     def __init__(self, storage_cls):
-        # Initialize the parent constructor
         super().__init__(storage_cls)
-
-        # Prepare the cache
         self.cache = None
         self._cache_modified_count = 0
-
-    def read(self):
-        if self.cache is None:
-            # Empty cache: read from the storage
-            self.cache = self.storage.read()
-
-        # Return the cached data
-        return self.cache
-
-    def write(self, data):
-        # Store data in cache
-        self.cache = data
-        self._cache_modified_count += 1
-
-        # Check if we need to flush the cache
-        if self._cache_modified_count >= self.WRITE_CACHE_SIZE:
-            self.flush()
 
     def flush(self):
         """
         Flush all unwritten data to disk.
         """
-        if self._cache_modified_count > 0:
-            # Force-flush the cache by writing the data to the storage
-            self.storage.write(self.cache)
-            self._cache_modified_count = 0
-
-    def close(self):
-        # Flush potentially unwritten data
-        self.flush()
-
-        # Let the storage clean up too
-        self.storage.close()
+        pass
