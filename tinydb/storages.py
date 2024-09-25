@@ -18,7 +18,12 @@ def touch(path: str, create_dirs: bool):
     :param path: The file to create.
     :param create_dirs: Whether to create all missing parent directories.
     """
-    pass
+    if create_dirs:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+    
+    if not os.path.exists(path):
+        with open(path, 'a'):
+            os.utime(path, None)
 
 
 class Storage(ABC):
@@ -38,7 +43,7 @@ class Storage(ABC):
 
         Return ``None`` here to indicate that the storage is empty.
         """
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def write(self, data: Dict[str, Dict[str, Any]]) ->None:
@@ -49,7 +54,7 @@ class Storage(ABC):
 
         :param data: The current state of the database.
         """
-        pass
+        raise NotImplementedError
 
     def close(self) ->None:
         """
@@ -88,6 +93,40 @@ class JSONStorage(Storage):
         if any([(character in self._mode) for character in ('+', 'w', 'a')]):
             touch(path, create_dirs=create_dirs)
         self._handle = open(path, mode=self._mode, encoding=encoding)
+        self.path = path
+        self.encoding = encoding
+
+    def read(self) ->Optional[Dict[str, Dict[str, Any]]]:
+        """
+        Read the current state.
+
+        Any kind of deserialization should go here.
+
+        Return ``None`` here to indicate that the storage is empty.
+        """
+        self._handle.seek(0)
+        try:
+            return json.load(self._handle)
+        except json.JSONDecodeError:
+            return None
+
+    def write(self, data: Dict[str, Dict[str, Any]]) ->None:
+        """
+        Write the current state of the database to the storage.
+
+        Any kind of serialization should go here.
+
+        :param data: The current state of the database.
+        """
+        self._handle.seek(0)
+        json.dump(data, self._handle, **self.kwargs)
+        self._handle.truncate()
+
+    def close(self) ->None:
+        """
+        Close open file handles.
+        """
+        self._handle.close()
 
 
 class MemoryStorage(Storage):
@@ -100,4 +139,26 @@ class MemoryStorage(Storage):
         Create a new instance.
         """
         super().__init__()
+        self.memory = None
+
+    def read(self) ->Optional[Dict[str, Dict[str, Any]]]:
+        """
+        Read the current state from memory.
+
+        Return ``None`` here to indicate that the storage is empty.
+        """
+        return self.memory
+
+    def write(self, data: Dict[str, Dict[str, Any]]) ->None:
+        """
+        Write the current state of the database to memory.
+
+        :param data: The current state of the database.
+        """
+        self.memory = data
+
+    def close(self) ->None:
+        """
+        Clear the memory.
+        """
         self.memory = None
