@@ -18,7 +18,12 @@ def touch(path: str, create_dirs: bool):
     :param path: The file to create.
     :param create_dirs: Whether to create all missing parent directories.
     """
-    pass
+    if create_dirs:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+    
+    if not os.path.exists(path):
+        with open(path, 'a'):
+            os.utime(path, None)
 
 
 class Storage(ABC):
@@ -38,7 +43,7 @@ class Storage(ABC):
 
         Return ``None`` here to indicate that the storage is empty.
         """
-        pass
+        raise NotImplementedError("This method needs to be implemented by a subclass")
 
     @abstractmethod
     def write(self, data: Dict[str, Dict[str, Any]]) ->None:
@@ -49,7 +54,7 @@ class Storage(ABC):
 
         :param data: The current state of the database.
         """
-        pass
+        raise NotImplementedError("This method needs to be implemented by a subclass")
 
     def close(self) ->None:
         """
@@ -88,6 +93,23 @@ class JSONStorage(Storage):
         if any([(character in self._mode) for character in ('+', 'w', 'a')]):
             touch(path, create_dirs=create_dirs)
         self._handle = open(path, mode=self._mode, encoding=encoding)
+        self.path = path
+        self.encoding = encoding
+
+    def read(self) ->Optional[Dict[str, Dict[str, Any]]]:
+        self._handle.seek(0)
+        try:
+            return json.load(self._handle)
+        except ValueError:
+            return None
+
+    def write(self, data: Dict[str, Dict[str, Any]]) ->None:
+        self._handle.seek(0)
+        json.dump(data, self._handle, **self.kwargs)
+        self._handle.truncate()
+
+    def close(self) ->None:
+        self._handle.close()
 
 
 class MemoryStorage(Storage):
@@ -101,3 +123,12 @@ class MemoryStorage(Storage):
         """
         super().__init__()
         self.memory = None
+
+    def read(self) ->Optional[Dict[str, Dict[str, Any]]]:
+        return self.memory
+
+    def write(self, data: Dict[str, Dict[str, Any]]) ->None:
+        self.memory = data
+
+    def close(self) ->None:
+        pass
