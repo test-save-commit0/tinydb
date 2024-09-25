@@ -23,6 +23,7 @@ def with_typehint(baseclass: Type[T]):
     MyPy does not. For that reason TinyDB has a MyPy plugin in
     ``mypy_plugin.py`` that adds support for this pattern.
     """
+    # The actual implementation is handled by the MyPy plugin in mypy_plugin.py
     return baseclass
 
 
