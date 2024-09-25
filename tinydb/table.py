@@ -233,7 +233,10 @@ class Table:
 
         :returns: a list containing the updated document's ID
         """
-        pass
+        updated_ids = []
+        for fields, cond in updates:
+            updated_ids.extend(self.update(fields, cond))
+        return updated_ids
 
     def upsert(self, document: Mapping, cond: Optional[QueryLike]=None) ->List[
         int]:
@@ -249,7 +252,19 @@ class Table:
         Document with a doc_id
         :returns: a list containing the updated documents' IDs
         """
-        pass
+        if isinstance(document, Document):
+            doc_id = document.doc_id
+            document = dict(document)
+            del document['doc_id']
+            cond = Query().doc_id == doc_id
+
+        if cond is None:
+            return [self.insert(document)]
+        
+        updated = self.update(document, cond)
+        if not updated:
+            return [self.insert(document)]
+        return updated
 
     def remove(self, cond: Optional[QueryLike]=None, doc_ids: Optional[
         Iterable[int]]=None) ->List[int]:
@@ -260,13 +275,31 @@ class Table:
         :param doc_ids: a list of document IDs
         :returns: a list containing the removed documents' ID
         """
-        pass
+        removed = []
+
+        def remover(table):
+            nonlocal removed
+            if doc_ids is not None:
+                for doc_id in doc_ids:
+                    if doc_id in table:
+                        del table[doc_id]
+                        removed.append(doc_id)
+            else:
+                for doc_id, doc in list(table.items()):
+                    if cond is None or cond(doc):
+                        del table[doc_id]
+                        removed.append(doc_id)
+
+        self._update_table(remover)
+        self.clear_cache()
+        return removed
 
     def truncate(self) ->None:
         """
         Truncate the table by removing all documents.
         """
-        pass
+        self._update_table(lambda table: table.clear())
+        self.clear_cache()
 
     def count(self, cond: QueryLike) ->int:
         """
@@ -274,13 +307,13 @@ class Table:
 
         :param cond: the condition use
         """
-        pass
+        return len(self.search(cond))
 
     def clear_cache(self) ->None:
         """
         Clear the query cache.
         """
-        pass
+        self._query_cache.clear()
 
     def __len__(self):
         """
@@ -301,7 +334,11 @@ class Table:
         """
         Return the ID for a newly inserted document.
         """
-        pass
+        if self._next_id is None:
+            self._next_id = max(self._read_table().keys() or [0]) + 1
+        else:
+            self._next_id += 1
+        return self._next_id
 
     def _read_table(self) ->Dict[str, Mapping]:
         """
@@ -311,7 +348,7 @@ class Table:
         we may not want to convert *all* documents when returning
         only one document for example.
         """
-        pass
+        return self._storage.read() or {}
 
     def _update_table(self, updater: Callable[[Dict[int, Mapping]], None]):
         """
@@ -326,4 +363,6 @@ class Table:
         As a further optimization, we don't convert the documents into the
         document class, as the table data will *not* be returned to the user.
         """
-        pass
+        data = self._read_table()
+        updater(data)
+        self._storage.write(data)
